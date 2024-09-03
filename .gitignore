@@ -31,3 +31,4 @@ dist/
 *.sublime-project
 *.sublime-workspace
 **/credentials.json
+**/token.json
