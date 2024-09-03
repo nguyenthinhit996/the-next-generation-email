@@ -3,6 +3,7 @@ import readline from "readline";
 import { google, gmail_v1 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import path from "path";
+import { JSDOM } from "jsdom";
 
 // Main function to handle the overall process
 export async function getGmailAuth() {
@@ -81,4 +82,87 @@ function getAccessToken(oAuth2Client: OAuth2Client): Promise<any> {
       });
     });
   });
+}
+
+export const truncateText = (text: string, maxLength = 10) => {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength) + "...";
+};
+
+// Function to decode base64url encoded content
+export const decodeBase64Url = (base64UrlString: string): string => {
+  const base64String = base64UrlString.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(base64String, "base64").toString("utf-8");
+};
+
+// Recursive function to extract body content
+export const getBodyFromParts = (
+  parts: gmail_v1.Schema$MessagePart[] | undefined
+): { textBody: string; htmlBody: string } => {
+  let textBody = "";
+  let htmlBody = "";
+
+  if (!parts) return { textBody, htmlBody };
+
+  for (const part of parts) {
+    if (part.mimeType === "text/plain" && part.body?.data) {
+      textBody += decodeBase64Url(part.body.data);
+    } else if (part.mimeType === "text/html" && part.body?.data) {
+      htmlBody += decodeBase64Url(part.body.data);
+    } else if (part.parts?.length) {
+      const nestedBodies = getBodyFromParts(part.parts);
+      textBody += nestedBodies.textBody;
+      htmlBody += nestedBodies.htmlBody;
+    }
+  }
+
+  return { textBody, htmlBody };
+};
+
+export const extractTextFromHtml = (html: string): string => {
+  const dom = new JSDOM(html);
+  let textContent = dom.window.document.body.textContent || ""; // Extracts the text content from the HTML
+
+  // Clean up the text content
+  textContent = textContent
+    .replace(/\n+/g, "\n") // Replace multiple newlines with a single newline
+    .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+    .trim(); // Remove leading and trailing whitespace
+
+  return textContent;
+};
+
+export function parseBacktickJSON(input: string): any {
+  // Step 1: Remove the backticks and the "json" keyword
+  const cleanedInput = input
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // Step 2: Parse the cleaned string into a JSON object
+  try {
+    return JSON.parse(cleanedInput);
+  } catch (error) {
+    console.error("Failed to parse JSON:", error);
+    return null;
+  }
+}
+
+export function isValidJSON(input: string): boolean {
+  // Step 1: Remove the backticks and the "json" keyword
+  const cleanedInput = input
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // Step 2: Parse the cleaned string into a JSON object
+  try {
+    JSON.parse(cleanedInput);
+    return true; // If parsing succeeds, it's valid JSON
+  } catch (error) {
+    console.error("Failed to parse JSON:", error);
+    return false;
+  }
 }

@@ -83,12 +83,12 @@ export const SEARCH_DESCRIPTION = `A tool for searching email messages or thread
 INPUT example:
 {
   "query": "specific search query",
-  "maxResults": 10, // Optional: number of results to return
-  "resource": "messages" // Optional: can be "messages" or "threads"
+  "maxResults": 5,
+  "resource": "messages"
 }
 
 OUTPUT:
-The output is a JSON list of either email messages or threads, depending on the specified resource, that matches the search query. For 'messages', the output includes details like the message ID, thread ID, snippet, body, subject, and sender of each message. For 'threads', it includes the thread ID, snippet, body, subject, and sender of the first message in each thread. If no data is returned, or if the specified resource is invalid, the tool throws an error with a relevant message.
+The output is a JSON list of either email messages or threads. If no data is returned, or if the specified resource is invalid, the tool throws an error with a relevant message.
 
 Example Output for 'messages':
 "Result for the query 'specific search query':
@@ -96,9 +96,9 @@ Example Output for 'messages':
   {
     'id': 'message_id',
     'threadId': 'thread_id',
-    'snippet': 'message snippet',
+    'snippet': 'snippet',
     'body': 'message body',
-    'subject': 'message subject',
+    'subject': 'subject',
     'sender': 'sender's email'
   },
   ... (other messages matching the query)
@@ -110,9 +110,9 @@ Example Output for 'threads':
   {
     'id': 'thread_id',
     'snippet': 'thread snippet',
-    'body': 'first message body',
-    'subject': 'first message subject',
-    'sender': 'first message sender'
+    'body': 'message body',
+    'subject': 'subject',
+    'sender': 'sender'
   },
   ... (other threads matching the query)
 ]"

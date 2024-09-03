@@ -37,7 +37,7 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { makeParseableTool } from "openai/lib/parser";
 
-export async function run() {
+export async function run(query: string) {
   // These are the default parameters for the Gmail tools
   const gmailParams = {
     credentials: {
@@ -53,80 +53,17 @@ export async function run() {
 
   // For custom parameters, uncomment the code above, replace the values with your own, and pass it to the tools below
   const tools = [
-    new GmailCreateDraft(auth, gmailParams)
-    // new GmailGetMessage(gmailParams),
-    // new GmailGetThread(gmailParams),
-    // new GmailSearch(gmailParams),
-    // new GmailSendMessage(gmailParams)
+    new GmailCreateDraft(auth, gmailParams),
+    new GmailGetMessage(auth, gmailParams),
+    new GmailGetThread(auth, gmailParams),
+    new GmailSearch(auth, gmailParams),
+    new GmailSendMessage(auth, gmailParams)
   ];
-
-  // https://smith.langchain.com/hub/hwchase17/react
-  // const prompt = await pull<PromptTemplate>("hwchase17/react");
 
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
     temperature: 0
   });
-
-  // const agent = await createReactAgent({
-  //   llm,
-  //   tools,
-  //   prompt
-  // });
-
-  console.log(tools[0].name);
-  console.log(tools[0].description);
-  console.log(tools[0].schema);
-
-  const parser = StructuredOutputParser.fromZodSchema(tools[0].schema);
-  const value = zodToJsonSchema(tools[0].schema, { name: tools[0].name });
-  console.log("zodFunction", JSON.stringify(value));
-
-  // console.log("zodToJsonSchema(tool.schema)", zodToJsonSchema(tools[0].schema));
-  // console.log("tools[0].schema", parser.getFormatInstructions());
-
-  const make = makeParseableTool<any>(
-    {
-      type: "function",
-      function: {
-        name: tools[0].name,
-        parameters: value,
-        strict: true,
-        ...(tools[0].description
-          ? { description: tools[0].description }
-          : undefined)
-      }
-    },
-    {
-      callback: undefined,
-      parser: (args) => tools[0].schema.parse(JSON.parse(args))
-    }
-  );
-
-  console.log("makeParseableTool", JSON.stringify(make));
-
-  const tool = tools[0];
-
-  const oaiToolDef = zodFunction({
-    name: tool.name,
-    parameters: tool.schema,
-    description: tool.description
-  });
-
-  console.log("oaiToolDef", JSON.stringify(oaiToolDef));
-
-  // let toolDef: ToolDefinition | undefined;
-
-  // if (!oaiToolDef.function.parameters) {
-  //   console.log("oaiToolDef", true);
-  //   // Fallback to the `convertToOpenAIFunction` util if the parameters are not defined.
-  //   // toolDef = {
-  //   //   type: "function",
-  //   //   function: convertToOpenAIFunction(tool, fields)
-  //   // };
-  // } else {
-  //   console.log("oaiToolDef", false);
-  // }
 
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", "You are a helpful assistant"],
@@ -137,39 +74,19 @@ export async function run() {
 
   const agent = createToolCallingAgent({ llm, tools, prompt });
 
-  // const agentExecutor = new AgentExecutor({
-  //   agent,
-  //   tools
-  // });
+  const agentExecutor = new AgentExecutor({
+    agent,
+    tools
+  });
 
   // const input = "Draft an email thanking them for coffee.";
-  // // const input = "what is LangChain?";
-  // // const input = "Draft an email to fake@fake.com thanking them for coffee.";
-  // const result = await agentExecutor.invoke({
-  //   input
-  // });
+  // const input = "what is LangChain?";
+  // const input = "Draft an email to fake@fake.com thanking them for coffee.";
+  const input = query || "Hello";
+  const result = await agentExecutor.invoke({
+    input
+  });
 
-  // console.log("View Result", result);
-
-  // const model = new OpenAI({
-  //   temperature: 0,
-  //   apiKey: process.env.OPENAI_API_KEY,
-  //   model: "gpt-4o-mini"
-  // });
-
-  // const gmailAgent = await initializeAgentExecutorWithOptions(tools, model, {
-  //   agentType: "structured-chat-zero-shot-react-description",
-  //   verbose: true
-  // });
-
-  // const example_query =
-  //   "Draft an email to fake@fake.com thanking them for coffee.";
-
-  // const createResult = await gmailAgent.invoke({ input: example_query });
-  // //   Create Result {
-  // //     output: 'I have created a draft email for you to edit. The draft Id is r5681294731961864018.'
-  // //   }
-  // console.log("Create Result", createResult);
-
-  return true;
+  console.log("View Result", result);
+  return result;
 }

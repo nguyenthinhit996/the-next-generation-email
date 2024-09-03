@@ -4,25 +4,32 @@ dotenv.config();
 import express, { Request, Response } from "express";
 import { run } from "./services/gmail";
 import { main } from "./services/mail";
+import { isValidJSON, parseBacktickJSON } from "./util";
+
+interface MailBody {
+  query: string;
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Middleware to parse JSON bodies
+app.use(express.json());
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello, TypeScript with Node.js and Express!");
 });
 
-app.get("/mail/draft", async (req: Request, res: Response) => {
-  const viewResult = await run();
-  console.log("viewResult", viewResult);
+app.post("/mail", async (req: Request<{}, {}, MailBody>, res: Response) => {
+  const { query } = req.body; // Here, query is of type string
 
-  res.send(viewResult);
-});
-
-app.get("/test", async (req: Request, res: Response) => {
-  const viewResult = await main();
-  console.log("viewResult", viewResult);
-
+  console.log("Received query:", query);
+  let viewResult = await run(query);
+  let outputData = viewResult?.output;
+  if (isValidJSON(viewResult?.output)) {
+    outputData = parseBacktickJSON(viewResult?.output || "");
+  }
+  viewResult = { ...viewResult, output: outputData };
   res.send(viewResult);
 });
 

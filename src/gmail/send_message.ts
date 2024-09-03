@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { GmailBaseTool, GmailBaseToolParams } from "./base.js";
-import { GET_MESSAGE_DESCRIPTION } from "./descriptions.js";
+import { GmailBaseTool, GmailBaseToolParams } from "./base";
+import { GET_MESSAGE_DESCRIPTION } from "./descriptions";
+import { gmail_v1 } from "googleapis";
 
 export class GmailSendMessage extends GmailBaseTool {
   name = "gmail_send_message";
@@ -10,13 +11,13 @@ export class GmailSendMessage extends GmailBaseTool {
     to: z.array(z.string()),
     subject: z.string(),
     cc: z.array(z.string()).optional(),
-    bcc: z.array(z.string()).optional(),
+    bcc: z.array(z.string()).optional()
   });
 
   description = GET_MESSAGE_DESCRIPTION;
 
-  constructor(fields?: GmailBaseToolParams) {
-    super(fields);
+  constructor(gmail: gmail_v1.Gmail, fields?: GmailBaseToolParams) {
+    super(gmail, fields);
   }
 
   private createEmailMessage({
@@ -24,7 +25,7 @@ export class GmailSendMessage extends GmailBaseTool {
     to,
     subject,
     cc,
-    bcc,
+    bcc
   }: z.infer<typeof this.schema>): string {
     const emailLines: string[] = [];
 
@@ -50,22 +51,22 @@ export class GmailSendMessage extends GmailBaseTool {
     to,
     subject,
     cc,
-    bcc,
+    bcc
   }: z.output<typeof this.schema>): Promise<string> {
     const rawMessage = this.createEmailMessage({
       message,
       to,
       subject,
       cc,
-      bcc,
+      bcc
     });
 
     try {
       const response = await this.gmail.users.messages.send({
         userId: "me",
         requestBody: {
-          raw: rawMessage,
-        },
+          raw: rawMessage
+        }
       });
 
       return `Message sent. Message Id: ${response.data.id}`;

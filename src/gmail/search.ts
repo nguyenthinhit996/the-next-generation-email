@@ -1,7 +1,14 @@
 import { gmail_v1 } from "googleapis";
 import { z } from "zod";
-import { GmailBaseTool, GmailBaseToolParams } from "./base.js";
-import { SEARCH_DESCRIPTION } from "./descriptions.js";
+import { GmailBaseTool, GmailBaseToolParams } from "./base";
+import { SEARCH_DESCRIPTION } from "./descriptions";
+import { JSDOM } from "jsdom";
+import {
+  decodeBase64Url,
+  extractTextFromHtml,
+  getBodyFromParts,
+  truncateText
+} from "../util";
 
 export class GmailSearch extends GmailBaseTool {
   name = "search_gmail";
@@ -9,13 +16,13 @@ export class GmailSearch extends GmailBaseTool {
   schema = z.object({
     query: z.string(),
     maxResults: z.number().optional(),
-    resource: z.enum(["messages", "threads"]).optional(),
+    resource: z.enum(["messages", "threads"]).optional()
   });
 
   description = SEARCH_DESCRIPTION;
 
-  constructor(fields?: GmailBaseToolParams) {
-    super(fields);
+  constructor(gmail: gmail_v1.Gmail, fields?: GmailBaseToolParams) {
+    super(gmail, fields);
   }
 
   async _call(arg: z.output<typeof this.schema>) {
@@ -24,7 +31,7 @@ export class GmailSearch extends GmailBaseTool {
     const response = await this.gmail.users.messages.list({
       userId: "me",
       q: query,
-      maxResults,
+      maxResults
     });
 
     const { data } = response;
@@ -41,6 +48,7 @@ export class GmailSearch extends GmailBaseTool {
 
     if (resource === "messages") {
       const parsedMessages = await this.parseMessages(messages);
+      console.log("parsedMessages", parsedMessages);
       return `Result for the query ${query}:\n${JSON.stringify(
         parsedMessages
       )}`;
@@ -59,8 +67,8 @@ export class GmailSearch extends GmailBaseTool {
       messages.map(async (message) => {
         const messageData = await this.gmail.users.messages.get({
           userId: "me",
-          format: "raw",
-          id: message.id ?? "",
+          format: "full",
+          id: message.id ?? ""
         });
 
         const headers = messageData.data.payload?.headers || [];
@@ -68,22 +76,33 @@ export class GmailSearch extends GmailBaseTool {
         const subject = headers.find((header) => header.name === "Subject");
         const sender = headers.find((header) => header.name === "From");
 
+        console.log(
+          "messageData.data.payload?.parts",
+          messageData.data.payload
+        );
         let body = "";
-        if (messageData.data.payload?.parts) {
-          body = messageData.data.payload.parts
-            .map((part) => part.body?.data ?? "")
-            .join("");
-        } else if (messageData.data.payload?.body?.data) {
-          body = messageData.data.payload.body.data;
+        if (messageData.data.payload?.body) {
+          // If body data exists directly on the payload
+          body = decodeBase64Url(messageData.data.payload?.body.data || "");
+
+          // If the MIME type is HTML, extract text from HTML
+          if (messageData.data.payload?.mimeType === "text/html") {
+            body = extractTextFromHtml(body);
+          }
+        } else if (messageData.data.payload?.parts) {
+          const { textBody, htmlBody } = getBodyFromParts(
+            messageData.data.payload?.parts
+          );
+          body = textBody || htmlBody;
         }
 
         return {
           id: message.id,
           threadId: message.threadId,
           snippet: message.snippet,
-          body,
-          subject,
-          sender,
+          body: truncateText(body, 50),
+          subject: subject?.value,
+          sender: sender?.value
         };
       })
     );
@@ -98,7 +117,7 @@ export class GmailSearch extends GmailBaseTool {
         const threadData = await this.gmail.users.threads.get({
           userId: "me",
           format: "raw",
-          id: thread.id ?? "",
+          id: thread.id ?? ""
         });
 
         const headers = threadData.data.messages?.[0]?.payload?.headers || [];
@@ -120,7 +139,7 @@ export class GmailSearch extends GmailBaseTool {
           snippet: thread.snippet,
           body,
           subject,
-          sender,
+          sender
         };
       })
     );
